@@ -8,19 +8,27 @@ internal sealed class ExceptionHandlingMiddleware(
 	IProblemDetailsService problemDetailsService,
 	ILogger<ExceptionHandlingMiddleware> logger) : IExceptionHandler
 {
+	private static string SanitizeForLog(string? value) =>
+		(value ?? string.Empty)
+			.Replace("\r", string.Empty)
+			.Replace("\n", string.Empty);
+
 	public async ValueTask<bool> TryHandleAsync(
 		HttpContext httpContext,
 		Exception exception,
 		CancellationToken cancellationToken)
 	{
 		var correlationContext = httpContext.RequestServices.GetRequiredService<ICorrelationContext>();
+		var sanitizedMethod = SanitizeForLog(httpContext.Request.Method);
+		var sanitizedPath = SanitizeForLog(httpContext.Request.Path.Value);
+		var sanitizedCorrelationId = SanitizeForLog(correlationContext.CorrelationId);
 
 		logger.LogError(
 			exception,
 			"Unhandled exception processing {Method} {Path}. CorrelationId: {CorrelationId}",
-			httpContext.Request.Method,
-			httpContext.Request.Path,
-			correlationContext.CorrelationId);
+			sanitizedMethod,
+			sanitizedPath,
+			sanitizedCorrelationId);
 
 		httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
