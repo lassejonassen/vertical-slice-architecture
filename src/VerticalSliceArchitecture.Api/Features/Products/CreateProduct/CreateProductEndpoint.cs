@@ -1,5 +1,6 @@
 ﻿using VerticalSliceArchitecture.Api.Common.Endpoints;
 using VerticalSliceArchitecture.Api.Common.Messaging;
+using VerticalSliceArchitecture.Api.Common.ResultPattern;
 
 namespace VerticalSliceArchitecture.Api.Features.Products.CreateProduct;
 
@@ -7,19 +8,21 @@ public sealed class CreateProductEndpoint : IEndpoint
 {
 	public void MapEndpoint(IEndpointRouteBuilder app)
 	{
-		app.MapPost("/api/products", async (
+		app.MapPost(ProductsConstants.BaseRoute, async (
 			CreateProductRequest request,
 			IMediator mediator,
 			CancellationToken cancellationToken) =>
 		{
 			var command = new CreateProductCommand(request.Name, request.Price);
 
-			var response = await mediator.Send(command, cancellationToken);
+			var result = await mediator.Send(command, cancellationToken);
 
-			return Results.Created($"/api/products/{response.Value.Id}", response);
+			return result.IsSuccess
+				? Results.Created($"{ProductsConstants.BaseRoute}/{result.Value.Id}", result.Value)
+				: result.ToProblem();
 		})
 		.WithName("CreateProduct")
-		.WithTags("Products")
+		.WithTags(ProductsConstants.Tag)
 		.Produces<CreateProductResponse>(StatusCodes.Status201Created)
 		.ProducesProblem(StatusCodes.Status400BadRequest);
 	}

@@ -5,10 +5,17 @@ using VerticalSliceArchitecture.Api.Domain.Entities;
 
 namespace VerticalSliceArchitecture.Api.Common.Database;
 
-public class AppDbContext : DbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
 	public DbSet<Product> Products => Set<Product>();
 	public DbSet<Order> Orders => Set<Order>();
+
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
+	{
+		modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+		base.OnModelCreating(modelBuilder);
+	}
 
 	protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
 	{
@@ -20,6 +27,10 @@ public class AppDbContext : DbContext
 		configurationBuilder
 			.Properties<OrderId>()
 			.HaveConversion<OrderIdValueConverter>();
+
+		configurationBuilder
+			.Properties<OrderItemId>()
+			.HaveConversion<OrderItemIdValueConverter>();
 
 		base.ConfigureConventions(configurationBuilder);
 	}
@@ -35,4 +46,10 @@ public sealed class OrderIdValueConverter : ValueConverter<OrderId, Guid>
 {
 	public OrderIdValueConverter()
 		: base(id => id.Value, value => new OrderId(value)) { }
+}
+
+public sealed class OrderItemIdValueConverter : ValueConverter<OrderItemId, Guid>
+{
+	public OrderItemIdValueConverter()
+		: base(id => id.Value, value => new OrderItemId(value)) { }
 }

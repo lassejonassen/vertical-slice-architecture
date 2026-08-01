@@ -1,9 +1,22 @@
-﻿namespace VerticalSliceArchitecture.Api.Common.Messaging;
+﻿using VerticalSliceArchitecture.Api.Domain.Common;
+
+namespace VerticalSliceArchitecture.Api.Common.Messaging;
 
 public interface IMediator
 {
 	Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
 	Task Send(IRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface IPublisher
+{
+	Task Publish(IDomainEvent notification, CancellationToken cancellationToken = default);
+}
+
+public interface INotificationHandler<in TNotification>
+	where TNotification : IDomainEvent
+{
+	Task Handle(TNotification notification, CancellationToken cancellationToken);
 }
 
 public interface IRequest<out TResponse> { }

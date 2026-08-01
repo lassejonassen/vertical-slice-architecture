@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+
+      - name: Restore
+        run: dotnet restore VerticalSliceArchitecture.slnx
+
+      - name: Build
+        run: dotnet build VerticalSliceArchitecture.slnx --no-restore --configuration Release
+
+      # The integration test project spins up a real Postgres via Testcontainers,
+      # which works out of the box on GitHub-hosted runners (Docker is preinstalled).
+      - name: Test
+        run: dotnet test VerticalSliceArchitecture.slnx --no-build --configuration Release

@@ -1,5 +1,3 @@
-﻿namespace VerticalSliceArchitecture.Api.Features.Products.GetProductById;
+namespace VerticalSliceArchitecture.Api.Features.Products.GetProductById;
 
-public class ProductDetailsDto
-{
-}
+public sealed record ProductDetailsDto(Guid Id, string Name, decimal Price);

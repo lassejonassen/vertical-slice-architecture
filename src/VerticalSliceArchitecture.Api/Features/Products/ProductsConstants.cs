@@ -1,5 +1,7 @@
-﻿namespace VerticalSliceArchitecture.Api.Features.Products;
+namespace VerticalSliceArchitecture.Api.Features.Products;
 
-public class ProductsConstants
+public static class ProductsConstants
 {
+	public const string BaseRoute = "/api/products";
+	public const string Tag = "Products";
 }

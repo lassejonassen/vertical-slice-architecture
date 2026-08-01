@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using VerticalSliceArchitecture.Api.Common.Messaging;
 using VerticalSliceArchitecture.Api.Domain.Common;
 
 namespace VerticalSliceArchitecture.Api.Common.Database.Interceptors;
@@ -22,7 +23,7 @@ public sealed class DispatchDomainEventsInterceptor(IPublisher publisher) : Save
 	private async Task DispatchDomainEventsAsync(DbContext context, CancellationToken cancellationToken)
 	{
 		var domainEntities = context.ChangeTracker
-			.Entries<AggregateRoot<object>>() // Or scan for any Entity exposing events
+			.Entries<IHasDomainEvents>()
 			.Where(x => x.Entity.DomainEvents.Any())
 			.ToList();
 

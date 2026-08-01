@@ -2,5 +2,8 @@
   <Folder Name="/src/">
     <Project Path="src/VerticalSliceArchitecture.Api/VerticalSliceArchitecture.Api.csproj" />
   </Folder>
-  <Folder Name="/tests/" />
+  <Folder Name="/tests/">
+    <Project Path="tests/VerticalSliceArchitecture.Api.IntegrationTests/VerticalSliceArchitecture.Api.IntegrationTests.csproj" Id="21580b80-3c84-4a94-a45f-2eb620b604ac" />
+    <Project Path="tests/VerticalSliceArchitecture.Api.Tests/VerticalSliceArchitecture.Api.Tests.csproj" Id="f0744585-1d0c-4aa3-8248-0c62333bf8be" />
+  </Folder>
 </Solution>

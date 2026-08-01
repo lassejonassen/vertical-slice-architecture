@@ -1,6 +1,8 @@
-﻿namespace VerticalSliceArchitecture.Api.Common.Messaging;
+﻿using VerticalSliceArchitecture.Api.Domain.Common;
 
-public class Mediator(IServiceProvider serviceProvider) : IMediator
+namespace VerticalSliceArchitecture.Api.Common.Messaging;
+
+public class Mediator(IServiceProvider serviceProvider) : IMediator, IPublisher
 {
 	public async Task Send(IRequest request, CancellationToken cancellationToken = default)
 	{
@@ -29,5 +31,16 @@ public class Mediator(IServiceProvider serviceProvider) : IMediator
 		}
 
 		return await handlerDelegate();
+	}
+
+	public async Task Publish(IDomainEvent notification, CancellationToken cancellationToken = default)
+	{
+		var handlerType = typeof(INotificationHandler<>).MakeGenericType(notification.GetType());
+		var handlers = serviceProvider.GetServices(handlerType);
+
+		foreach (dynamic handler in handlers)
+		{
+			await handler.Handle((dynamic)notification, cancellationToken);
+		}
 	}
 }

@@ -1,9 +1,12 @@
+using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Reflection;
+using VerticalSliceArchitecture.Api.Common.Database;
+using VerticalSliceArchitecture.Api.Common.Database.Interceptors;
 using VerticalSliceArchitecture.Api.Common.Endpoints;
 using VerticalSliceArchitecture.Api.Common.Messaging;
 using VerticalSliceArchitecture.Api.Common.Middleware;
@@ -41,8 +44,19 @@ openTelemetry
 		.AddConsoleExporter());
 
 
+builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
+
+builder.Services.AddScoped<DispatchDomainEventsInterceptor>();
+
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+{
+	options
+		.UseNpgsql(builder.Configuration.GetConnectionString("Database"))
+		.AddInterceptors(sp.GetRequiredService<DispatchDomainEventsInterceptor>());
+});
+
 builder.Services.AddMediator();
-builder.Services.AddMediatorHandlers();
+builder.Services.AddMediatorHandlers(Assembly.GetExecutingAssembly());
 
 builder.Services.AddOpenApi();
 
@@ -52,6 +66,8 @@ builder.Services.AddProblemDetails();
 
 builder.Services.AddCors();
 
+builder.Services.AddAuthorization();
+
 builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());
 
 var app = builder.Build();
@@ -59,7 +75,7 @@ var app = builder.Build();
 // Migrate database
 if (app.Environment.IsDevelopment())
 {
-	// await app.Services.MigrateDatabaseAsync();
+	await app.Services.MigrateDatabaseAsync();
 }
 
 app.MapOpenApi();
@@ -99,4 +115,5 @@ app.MapEndpoints();
 
 app.Run();
 
-
+// Exposes the generated entry point so WebApplicationFactory<Program> can host it in tests.
+public partial class Program;
