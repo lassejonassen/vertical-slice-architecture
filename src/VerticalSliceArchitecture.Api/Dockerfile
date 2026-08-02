@@ -12,7 +12,17 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
+# Central package management needs these two files present before any csproj restores.
+COPY ["Directory.Build.props", "Directory.Packages.props", "./"]
+
+# The Api project pulls in Domain/Persistence/SharedKernel via ProjectReference, so restore needs
+# all four csproj files up front — copying just the Api one (as the single-project template did)
+# fails outright once project references exist.
 COPY ["src/VerticalSliceArchitecture.Api/VerticalSliceArchitecture.Api.csproj", "src/VerticalSliceArchitecture.Api/"]
+COPY ["src/VerticalSliceArchitecture.Domain/VerticalSliceArchitecture.Domain.csproj", "src/VerticalSliceArchitecture.Domain/"]
+COPY ["src/VerticalSliceArchitecture.Persistence/VerticalSliceArchitecture.Persistence.csproj", "src/VerticalSliceArchitecture.Persistence/"]
+COPY ["src/VerticalSliceArchitecture.SharedKernel/VerticalSliceArchitecture.SharedKernel.csproj", "src/VerticalSliceArchitecture.SharedKernel/"]
 RUN dotnet restore "./src/VerticalSliceArchitecture.Api/VerticalSliceArchitecture.Api.csproj"
 COPY . .
 WORKDIR "/src/src/VerticalSliceArchitecture.Api"

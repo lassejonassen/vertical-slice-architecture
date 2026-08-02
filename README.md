@@ -1,34 +1,44 @@
 # Vertical Slice Architecture
 
 A .NET 10 minimal API template organized around **vertical slices**: each
-feature (`CreateProduct`, `CancelOrder`, ...) owns its own command/query,
-handler, validator, and endpoint in one folder, instead of being spread across
-horizontal layers (controllers/services/repositories).
+feature (`RegisterClient`, `DeactivateClient`, ...) owns its own
+command/query, handler, validator, and endpoint in one folder, instead of
+being spread across horizontal layers (controllers/services/repositories).
+
+The domain code, persistence, and web API live in separate projects so the
+dependency direction is enforced by the compiler — and by a dedicated
+architecture-test project — not just by convention.
 
 ## Stack
 
 - **.NET 10** minimal APIs
-- **PostgreSQL** via **EF Core** (`Npgsql.EntityFrameworkCore.PostgreSQL`)
-- A small hand-rolled mediator (`Common/Messaging`) with pipeline behaviors
-  for logging and **FluentValidation**
+- **PostgreSQL or SQL Server** via **EF Core**, provider chosen at runtime
+  (`Persistence:Provider`)
+- A small hand-rolled command/query dispatcher
+  (`Api/Infrastructure/Messaging`) — not MediatR — supporting both direct
+  handler injection and dispatcher-based resolution
+- **FluentValidation** for request shape validation
 - A `Result`/`Error` pattern instead of throwing for expected failures
-  (`Common/ResultPattern`)
+  (`SharedKernel/Results`)
+- **JWT bearer authentication** against Microsoft Entra ID or Keycloak,
+  policy-based authorization, and ASP.NET Core rate limiting
 - **Serilog** + **OpenTelemetry** for logging/tracing/metrics
 - **Scalar** for interactive API docs (over ASP.NET Core's built-in OpenAPI
   document generation)
-- **xUnit** for tests: a plain unit test project, and an integration test
-  project that runs the real app against a **Testcontainers**-managed
+- **xUnit v3** for tests: architecture tests (NetArchTest), domain unit
+  tests, and API integration tests against a **Testcontainers**-managed
   Postgres
 
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker](https://www.docker.com/) — for local Postgres (via Docker Compose)
-  and for the integration tests (via Testcontainers)
+- [Docker](https://www.docker.com/) — for the local Postgres/Keycloak/OTel
+  stack (via Docker Compose) and for the integration tests (via
+  Testcontainers)
 
 ## Getting started
 
-Clone the repo, then pick one of two ways to run it:
+Clone the repo, then pick one of two ways to run it.
 
 ### Option A — everything in Docker
 
@@ -36,71 +46,97 @@ Clone the repo, then pick one of two ways to run it:
 docker compose up --build
 ```
 
-This builds the API image and starts both the API and a Postgres instance.
-The API applies EF Core migrations automatically on startup (see
-[Database](#database) below) and is reachable at `http://localhost:5149`.
+This starts Postgres, a local Keycloak instance (pre-seeded with a realm and
+three test users), an OpenTelemetry collector, and the API — which applies
+EF Core migrations automatically on startup (see [Database](#database)
+below). The API is reachable at `http://localhost:5149`.
 
-### Option B — API on the host, Postgres in Docker
+### Option B — API on the host, everything else in Docker
 
 ```bash
-docker compose up postgres -d
+docker compose up postgres keycloak otel-collector -d
 dotnet run --project src/VerticalSliceArchitecture.Api
 ```
 
-The default `appsettings.Development.json` connection string already points
-at the Postgres container started above (`localhost:5432`), so no further
-configuration is needed. The API listens on `http://localhost:5149` (see
-`Properties/launchSettings.json` for the `http`/`https` profiles).
+The default `appsettings.Development.json` already points at Postgres
+(`localhost:5432`) and Keycloak (`http://localhost:8080/realms/acme`), so no
+further configuration is needed. The API listens on `http://localhost:5149`
+(see `src/VerticalSliceArchitecture.Api/Properties/launchSettings.json` for
+the `http`/`https` profiles).
 
 Either way, once it's running:
 
-- `GET /` → `"Always on"` (basic liveness check)
-- `GET /scalar` → interactive API docs (Scalar UI)
-- `GET /openapi/v1.json` → the raw OpenAPI document
+- `GET /health` / `GET /alive` → health checks (anonymous)
+- `GET /scalar` → interactive API docs (Development only)
+- `GET /openapi/v1.json` → the raw OpenAPI document (Development only)
+
+### Trying it out end to end
+
+The seeded Keycloak realm (`deploy/keycloak/acme-realm.json`) has three
+users — `reader`/`reader`, `client-manager`/`client-manager`, and
+`admin`/`admin` — matching the three application roles
+(`acme.reader`, `acme.client-manager`, `acme.administrator`). Get a token via
+the password grant and call the API:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/acme/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=acme-api \
+  -d username=client-manager -d password=client-manager \
+  | jq -r .access_token)
+
+curl -X POST http://localhost:5149/api/v1/clients \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"companyName":"Acme Corp","contactEmail":"someone@acme-corp.test"}'
+```
+
+A `reader`-role token can `GET /api/v1/clients` but gets `403 Forbidden` on
+the same `POST` — that's the policy-based authorization described in
+[CLAUDE.md](CLAUDE.md).
 
 ## Configuration
 
-The connection string lives under `ConnectionStrings:Database`:
+Settings are bound from `appsettings.json` sections and validated at
+startup (a misconfigured value fails the process immediately instead of
+surfacing as a puzzling runtime error later):
 
-- `appsettings.Development.json` has a real local default matching the
-  `docker-compose.yml` Postgres service (db `vertical_slice_architecture`,
-  user/password `postgres`).
-- `appsettings.json` (used outside Development) has it blank on purpose —
-  supply the real value via environment variables or
-  [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets)
-  (a `UserSecretsId` is already configured in the csproj), not by committing
-  credentials.
+| Section                 | Purpose                                                              |
+| ----------------------- | -------------------------------------------------------------------- |
+| `Persistence`           | Database provider, connection string, migration/logging behavior     |
+| `Security`              | Identity provider (`EntraId`/`Keycloak`), authority, audience, roles |
+| `Observability`         | Service name/version, OTLP endpoint, sampling                        |
+| `RateLimiting`          | Per-policy limits (`PerUser`, `Sensitive`, `Burst`)                  |
+| `AzureAppConfiguration` | Optional centralized config source; no-ops if unset                  |
 
-Any setting can be overridden with an environment variable using the
-`Section__Key` convention, e.g.:
+`appsettings.json` (used outside Development) leaves secrets blank on
+purpose — supply the real values via environment variables or
+[user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets)
+(a `UserSecretsId` is already configured in the Api csproj), not by
+committing credentials. Any setting can be overridden with an environment
+variable using the `Section__Key` convention, e.g.:
 
 ```bash
-ConnectionStrings__Database="Host=localhost;Port=5432;Database=vertical_slice_architecture;Username=postgres;Password=postgres"
+Persistence__ConnectionString="Host=localhost;Port=5432;Database=vertical_slice_architecture;Username=postgres;Password=postgres"
 ```
 
 ## Database
 
-Migrations live in `src/VerticalSliceArchitecture.Api/Common/Database/Migrations/`.
-The API applies pending migrations automatically on startup when
-`ASPNETCORE_ENVIRONMENT=Development` (see `Program.cs`); there's nothing to
-run by hand for local development.
-
-To add a new migration after changing the model, first restore the pinned
-`dotnet-ef` CLI tool (once per clone — it's tracked in `dotnet-tools.json` so
-everyone uses the same version instead of relying on a global install):
+Migrations live in `src/VerticalSliceArchitecture.Persistence/Migrations/`
+— note the `DbContext` lives in the **Persistence** project, not the Api
+project, so both `--project` and `--startup-project` are needed:
 
 ```bash
-dotnet tool restore
-```
+dotnet tool restore   # once per clone — pins the dotnet-ef version in dotnet-tools.json
 
-Then, from the repo root:
-
-```bash
 dotnet ef migrations add <Name> \
-  --project src/VerticalSliceArchitecture.Api \
+  --project src/VerticalSliceArchitecture.Persistence \
   --startup-project src/VerticalSliceArchitecture.Api \
-  --output-dir Common/Database/Migrations
+  --output-dir Migrations
 ```
+
+The API applies pending migrations automatically on startup when
+`Persistence:MigrateOnStartup` is `true` (the default in
+`appsettings.Development.json`); there's nothing to run by hand for local
+development.
 
 ## Tests
 
@@ -108,61 +144,94 @@ dotnet ef migrations add <Name> \
 dotnet test
 ```
 
-This runs both test projects under `tests/`:
+This runs all three test projects under `tests/`:
 
-- **`VerticalSliceArchitecture.Api.Tests`** — plain unit tests (domain logic,
-  the mediator, pipeline behaviors, the `Result` pattern). No database, no
-  Docker.
+- **`VerticalSliceArchitecture.ArchitectureTests`** — layering rules
+  (`Domain`/`SharedKernel` can't depend on `Persistence`/`Api`, no EF
+  Core/ASP.NET Core leaking into `Domain`) and handler/endpoint naming
+  conventions, via [NetArchTest](https://github.com/BenMorris/NetArchTest).
+  No database, no Docker.
+- **`VerticalSliceArchitecture.Domain.Tests`** — plain unit tests for the
+  `Client`/`User` aggregates, value objects, and the `Result` pattern. No
+  database, no Docker.
 - **`VerticalSliceArchitecture.Api.IntegrationTests`** — spins up a real,
   disposable Postgres via Testcontainers and runs the actual API against it
-  end to end (`ApiFactory : WebApplicationFactory<Program>`). Requires Docker
-  to be running.
+  end to end (`ApiFactory : WebApplicationFactory<Program>`), authenticating
+  through a test-only header-driven identity instead of a real Keycloak/
+  EntraId token. Requires Docker to be running.
 
 ## Project structure
 
 ```text
-src/VerticalSliceArchitecture.Api/
-  Common/           # Cross-cutting infrastructure: DB, mediator, middleware,
-                     # the Result pattern, endpoint auto-registration
-  Domain/            # Entities, value objects, strongly-typed ids, domain events
-  Features/
-    Products/
-      CreateProduct/   # Command + Handler + Validator + Endpoint + Response
-      GetProductById/  # Query  + Handler +           Endpoint + Dto
-      ProductsConstants.cs
-    Orders/
-      CreateOrder/
-      CancelOrder/
-      OrdersConstants.cs
+src/
+  VerticalSliceArchitecture.SharedKernel/   # Result/Error, AggregateRoot, ValueObject,
+                                             # IStronglyTypedId — no project references
+  VerticalSliceArchitecture.Domain/
+    Clients/                                # Client aggregate, value objects, events, errors
+    Users/                                  # User aggregate, value objects, events, errors
+  VerticalSliceArchitecture.Persistence/
+    ApplicationDbContext.cs
+    Configurations/                         # IEntityTypeConfiguration<T> per entity
+    Converters/                             # strongly-typed-id value converters
+    Interceptors/                           # audit stamping, domain event dispatch
+    Repositories/
+    Migrations/
+  VerticalSliceArchitecture.Integrations/   # reserved for future external adapters
+  VerticalSliceArchitecture.Api/
+    Program.cs
+    Features/
+      Clients/
+        RegisterClient/                     # Command + Handler + Validator + Endpoint + Response
+        GetClientById/                      # Query + Handler + Endpoint + Response
+        DeactivateClient/
+        SearchClients/
+      Users/
+        GetCurrentUser/
+    Infrastructure/
+      Endpoints/                            # IEndpoint, auto-registration, filters
+      Messaging/                            # IDispatcher, command/query contracts
+      Security/                             # JWT bearer, policies, JIT user provisioning
+      RateLimiting/
+      Observability/
+      Middleware/
+tests/
+  VerticalSliceArchitecture.ArchitectureTests/
+  VerticalSliceArchitecture.Domain.Tests/
+  VerticalSliceArchitecture.Api.IntegrationTests/
+deploy/
+  keycloak/acme-realm.json                  # local dev realm: roles, client, seeded users
+  otel-collector/config.yaml                # local dev OTLP collector (debug exporter)
 ```
-
-Each slice under `Features/` is self-contained: a request (command/query), a
-handler, an optional FluentValidation validator, and an `IEndpoint` that maps
-the HTTP route. `IEndpoint` implementations are discovered and mapped
-automatically (`Common/Endpoints/EndpointExtensions.cs`) — no central routing
-file to keep in sync.
 
 ### Adding a new vertical slice
 
-Using `Features/Products/CreateProduct/` as the template, a new slice
-typically needs:
+Using `Features/Clients/RegisterClient/` as the template:
 
-1. **Command or query** — a record implementing `IRequest<Result<TResponse>>`
-   (or `IRequest<Result>` if there's no return value).
-2. **Handler** — implements `IRequestHandler<TRequest, TResponse>`; talks to
-   `AppDbContext` and/or domain entities directly, returns a `Result`.
-3. **Validator** (optional) — a `FluentValidation.AbstractValidator<TRequest>`.
-   Discovered and run automatically by `ValidationBehavior` — nothing to
-   register by hand.
-4. **Endpoint** — implements `IEndpoint`, maps the route, calls
-   `IMediator.Send(...)`, and converts the `Result` to an HTTP response
-   (`Results.Ok(result.Value)` / `result.ToProblem()` on failure —
-   see `Common/ResultPattern/ResultExtensions.cs`).
+1. **Command or query** — a record implementing `ICommand`,
+   `ICommand<TResponse>`, or `IQuery<TResponse>`.
+2. **Handler** — `internal sealed class` implementing
+   `ICommandHandler<TCommand>`, `ICommandHandler<TCommand, TResponse>`, or
+   `IQueryHandler<TQuery, TResponse>`; talks to the aggregate/repository (for
+   writes) or the read-model view (for reads), and returns a `Result`.
+3. **Validator** (optional) — a `FluentValidation.AbstractValidator<TRequest>`,
+   wired in via `.WithValidation<TRequest>()` on the endpoint. Shape
+   validation only — the domain's value objects re-validate independently.
+4. **Endpoint** — `internal sealed class` implementing `IEndpoint`, under the
+   `Features` namespace, mapping the route and converting the `Result` to an
+   HTTP response (`.ToOk()` / `.ToCreated(...)` / `.ToNoContent()`).
 
 Handlers, validators, and `IEndpoint` implementations are all picked up via
-assembly scanning (`Program.cs`), so a new slice needs no other wiring.
+assembly scanning (`Program.cs`), so a new slice needs no other wiring — and
+`ArchitectureTests` will fail the build if the naming/accessibility
+conventions above aren't followed.
+
+See [CLAUDE.md](CLAUDE.md) for a deeper architectural walkthrough (the
+dispatcher, the `Result` pattern, persistence conventions, security, and
+testing conventions).
 
 ## CI
 
-`.github/workflows/ci.yml` restores, builds, and runs both test projects on
-every push to `master` and on pull requests.
+`.github/workflows/ci.yml` restores, builds, and runs all three test
+projects on every push to `master` and on pull requests. GitHub-hosted
+runners ship Docker preinstalled, so the Testcontainers-backed integration
+tests work without any extra setup.

@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      CA1707: test methods use Method_Scenario_Expectation naming throughout this codebase —
+      the underscores are what make a failing test readable in the runner output.
+    -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+</Project>

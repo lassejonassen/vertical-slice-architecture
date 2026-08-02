@@ -1,0 +1,22 @@
+receivers:
+  otlp:
+    protocols:
+      # Explicit 0.0.0.0 endpoints: the collector image binds OTLP receivers to 127.0.0.1 by
+      # default, which is unreachable from the api container over the compose network.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]

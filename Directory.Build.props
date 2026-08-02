@@ -1,0 +1,37 @@
+<Project>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+
+		<!--
+      Warnings as errors from day one. Retrofitting this onto a codebase that has accumulated a
+      few hundred warnings never happens; starting with it costs nothing.
+    -->
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<AnalysisLevel>latest-recommended</AnalysisLevel>
+		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<!--
+      CS1591: not every public member needs an XML comment.
+      CA1716: `Error` (Result pattern) and `IStronglyTypedId<T>.New()` are the established
+        vocabulary for this codebase's Result/strongly-typed-id patterns; renaming them to dodge
+        a reserved-keyword collision would make the code less idiomatic, not more.
+      CA1711: `IDomainEventHandler<T>` intentionally mirrors the familiar *EventHandler naming.
+    -->
+		<NoWarn>$(NoWarn);CS1591;CA1716;CA1711</NoWarn>
+
+		<Deterministic>true</Deterministic>
+		<ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<DebugType>portable</DebugType>
+		<PublishTrimmed>false</PublishTrimmed>
+	</PropertyGroup>
+</Project>

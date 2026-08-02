@@ -1,0 +1,3 @@
+global using Microsoft.EntityFrameworkCore;
+global using VerticalSliceArchitecture.SharedKernel.Abstractions;
+global using VerticalSliceArchitecture.SharedKernel.Domain;

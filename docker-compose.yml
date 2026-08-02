@@ -8,12 +8,50 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # KC_HOSTNAME pins the issuer/endpoint URLs in Keycloak's discovery document to
+      # http://localhost:8080/..., no matter which network path was used to reach it. That is what
+      # lets the api container validate tokens fetched by a developer against localhost:8080 while
+      # the container itself talks to Keycloak over the compose network as `keycloak:8080`.
+      KC_HOSTNAME: http://localhost:8080
+      # Without this, the discovery document's jwks_uri/token_endpoint would also say
+      # localhost:8080 — unreachable from the api container, which would fail to fetch signing
+      # keys and reject every token with a confusing "unable to validate issuer" error. Dynamic
+      # backchannel URLs make Keycloak answer those two fields with whatever host:port the caller
+      # actually used, while `issuer` itself (embedded in every token) stays pinned to KC_HOSTNAME.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/keycloak/acme-realm.json:/opt/keycloak/data/import/acme-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./deploy/otel-collector/config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
 
   api:
     build:
@@ -22,12 +60,24 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
-      ConnectionStrings__Database: "Host=postgres;Port=5432;Database=vertical_slice_architecture;Username=postgres;Password=postgres"
+      Persistence__Provider: PostgreSql
+      Persistence__ConnectionString: "Host=postgres;Port=5432;Database=vertical_slice_architecture;Username=postgres;Password=postgres"
+      Persistence__MigrateOnStartup: "true"
+      Security__Provider: Keycloak
+      Security__Authority: "http://keycloak:8080/realms/acme"
+      Security__Audience: acme-api
+      Security__Realm: acme
+      Security__RequireHttpsMetadata: "false"
+      Observability__OtlpEndpoint: "http://otel-collector:4317"
     ports:
       - "5149:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
 volumes:
   postgres-data:

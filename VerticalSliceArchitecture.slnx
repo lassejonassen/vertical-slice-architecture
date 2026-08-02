@@ -1,9 +1,18 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/VerticalSliceArchitecture.Api/VerticalSliceArchitecture.Api.csproj" />
+    <Project Path="src/VerticalSliceArchitecture.Domain/VerticalSliceArchitecture.Domain.csproj" Id="f691342b-c039-4aa2-aefd-067c624bae8f" />
+    <Project Path="src/VerticalSliceArchitecture.Integrations/VerticalSliceArchitecture.Integrations.csproj" Id="484dfd7b-f160-4e29-a27b-fabc44035d55" />
+    <Project Path="src/VerticalSliceArchitecture.Persistence/VerticalSliceArchitecture.Persistence.csproj" Id="1fc89b1a-3e78-4edb-809c-62328267fc0e" />
+    <Project Path="src/VerticalSliceArchitecture.SharedKernel/VerticalSliceArchitecture.SharedKernel.csproj" Id="04e4282a-fd79-4142-b58b-3276f2cd9b18" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/VerticalSliceArchitecture.Api.IntegrationTests/VerticalSliceArchitecture.Api.IntegrationTests.csproj" Id="21580b80-3c84-4a94-a45f-2eb620b604ac" />
-    <Project Path="tests/VerticalSliceArchitecture.Api.Tests/VerticalSliceArchitecture.Api.Tests.csproj" Id="f0744585-1d0c-4aa3-8248-0c62333bf8be" />
+    <Project Path="tests/VerticalSliceArchitecture.Api.IntegrationTests/VerticalSliceArchitecture.Api.IntegrationTests.csproj" />
+    <Project Path="tests/VerticalSliceArchitecture.ArchitectureTests/VerticalSliceArchitecture.ArchitectureTests.csproj" />
+    <Project Path="tests/VerticalSliceArchitecture.Domain.Tests/VerticalSliceArchitecture.Domain.Tests.csproj" />
   </Folder>
 </Solution>

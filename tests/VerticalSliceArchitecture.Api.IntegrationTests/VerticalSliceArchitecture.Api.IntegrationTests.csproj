@@ -1,19 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\VerticalSliceArchitecture.Api\VerticalSliceArchitecture.Api.csproj" />
+    <ProjectReference Include="..\..\src\VerticalSliceArchitecture.Domain\VerticalSliceArchitecture.Domain.csproj" />
+    <ProjectReference Include="..\..\src\VerticalSliceArchitecture.SharedKernel\VerticalSliceArchitecture.SharedKernel.csproj" />
   </ItemGroup>
 
 </Project>
